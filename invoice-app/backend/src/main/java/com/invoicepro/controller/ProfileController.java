@@ -12,7 +12,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/auth") // Auth routes per requirements
+@RequestMapping("/auth")
 @RequiredArgsConstructor
 public class ProfileController {
 

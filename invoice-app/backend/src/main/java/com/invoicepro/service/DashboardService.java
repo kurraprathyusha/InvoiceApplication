@@ -34,49 +34,45 @@ public class DashboardService {
 
         Long userId = user.getId();
 
-        List<Invoice> allInvoices = invoiceRepository.findAllWithFilters(userId, null, null, null, PageRequest.of(0, 10000)).getContent();
-        
-        long totalCustomers = customerRepository.findByUserId(userId).size();
-        long totalInvoices = allInvoices.size();
+        long totalCustomers = customerRepository.countByUserId(userId);
+        long totalInvoices = invoiceRepository.countByUserId(userId);
 
-        BigDecimal totalRevenue = allInvoices.stream()
-                .filter(i -> i.getStatus() == InvoiceStatus.PAID)
-                .map(Invoice::getTotalAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalRevenue = invoiceRepository.sumTotalAmountByUserIdAndStatus(userId, InvoiceStatus.PAID);
+        if (totalRevenue == null) totalRevenue = BigDecimal.ZERO;
 
-        BigDecimal pendingAmount = allInvoices.stream()
-                .filter(i -> i.getStatus() == InvoiceStatus.UNPAID || i.getStatus() == InvoiceStatus.PENDING)
-                .map(Invoice::getTotalAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal pendingAmount = invoiceRepository.sumTotalAmountByUserIdAndStatuses(userId,
+                List.of(InvoiceStatus.UNPAID, InvoiceStatus.PENDING));
+        if (pendingAmount == null) pendingAmount = BigDecimal.ZERO;
 
-        List<InvoiceResponse> recentInvoices = invoiceRepository.findAllWithFilters(userId, null, null, null, 
+        List<InvoiceResponse> recentInvoices = invoiceRepository.findAllWithFilters(userId, null, null, null,
                 PageRequest.of(0, 5, Sort.by(Sort.Direction.DESC, "invoiceDate"))).map(this::mapToResponse).getContent();
 
-        // Calculate Revenue by Month (last 6 months)
+        // Calculate Revenue by Month (last 6 months) using targeted queries
         List<DashboardStatsResponse.MonthlyRevenue> revenueByMonth = new ArrayList<>();
         LocalDate now = LocalDate.now();
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMM yyyy");
-        
+
         for (int i = 5; i >= 0; i--) {
             LocalDate monthStart = now.minusMonths(i).withDayOfMonth(1);
             LocalDate monthEnd = monthStart.plusMonths(1).minusDays(1);
-            
-            BigDecimal monthRev = allInvoices.stream()
-                    .filter(inv -> inv.getStatus() == InvoiceStatus.PAID)
-                    .filter(inv -> !inv.getInvoiceDate().isBefore(monthStart) && !inv.getInvoiceDate().isAfter(monthEnd))
-                    .map(Invoice::getTotalAmount)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-                    
+
+            BigDecimal monthRev = invoiceRepository.sumTotalAmountByUserIdAndStatusAndDateRange(
+                    userId, InvoiceStatus.PAID, monthStart, monthEnd);
+            if (monthRev == null) monthRev = BigDecimal.ZERO;
+
             revenueByMonth.add(DashboardStatsResponse.MonthlyRevenue.builder()
                     .month(monthStart.format(formatter))
                     .revenue(monthRev)
                     .build());
         }
 
-        // Calculate Status Distribution
-        Map<InvoiceStatus, Long> statusCounts = allInvoices.stream()
-                .collect(Collectors.groupingBy(Invoice::getStatus, Collectors.counting()));
-                
+        // Calculate Status Distribution using a group-by query
+        Map<InvoiceStatus, Long> statusCounts = invoiceRepository.countByUserIdGroupByStatus(userId).stream()
+                .collect(Collectors.toMap(
+                        row -> (InvoiceStatus) row[0],
+                        row -> (Long) row[1]
+                ));
+
         List<DashboardStatsResponse.StatusDistribution> statusDistribution = Arrays.stream(InvoiceStatus.values())
                 .map(status -> DashboardStatsResponse.StatusDistribution.builder()
                         .status(status.name())

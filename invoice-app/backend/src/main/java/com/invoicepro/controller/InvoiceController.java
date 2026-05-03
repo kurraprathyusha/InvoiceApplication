@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/invoices")
+@RequestMapping("/invoices")
 @RequiredArgsConstructor
 public class InvoiceController {
 
@@ -37,6 +37,13 @@ public class InvoiceController {
             @RequestParam(required = false) String search,
             @PageableDefault(size = 10, sort = "invoiceDate", direction = Sort.Direction.DESC) Pageable pageable,
             @AuthenticationPrincipal UserDetails userDetails) {
+        if (status != null && !status.isBlank()) {
+            try {
+                InvoiceStatus.valueOf(status);
+            } catch (IllegalArgumentException e) {
+                return ResponseEntity.badRequest().build();
+            }
+        }
         return ResponseEntity.ok(invoiceService.getInvoices(status, customerId, search, pageable, userDetails.getUsername()));
     }
 
@@ -66,6 +73,11 @@ public class InvoiceController {
                                                         @AuthenticationPrincipal UserDetails userDetails) {
         String statusStr = payload.get("status");
         if (statusStr == null) {
+            return ResponseEntity.badRequest().build();
+        }
+        try {
+            InvoiceStatus.valueOf(statusStr);
+        } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().build();
         }
         return ResponseEntity.ok(invoiceService.updateInvoiceStatus(id, InvoiceStatus.valueOf(statusStr), userDetails.getUsername()));

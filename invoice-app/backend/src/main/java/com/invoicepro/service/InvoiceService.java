@@ -36,7 +36,7 @@ public class InvoiceService {
     private final UserRepository userRepository;
 
     @Transactional
-    public synchronized InvoiceResponse createInvoice(InvoiceRequest request, String userEmail) {
+    public InvoiceResponse createInvoice(InvoiceRequest request, String userEmail) {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
@@ -69,7 +69,8 @@ public class InvoiceService {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        Page<Invoice> invoices = invoiceRepository.findAllWithFilters(user.getId(), statusStr, customerId, search, pageable);
+        InvoiceStatus status = (statusStr != null && !statusStr.isBlank()) ? InvoiceStatus.valueOf(statusStr) : null;
+        Page<Invoice> invoices = invoiceRepository.findAllWithFilters(user.getId(), status, customerId, search, pageable);
         return invoices.map(this::mapToResponse);
     }
 
