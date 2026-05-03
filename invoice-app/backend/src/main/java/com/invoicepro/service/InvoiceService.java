@@ -65,6 +65,7 @@ public class InvoiceService {
         return mapToResponse(invoiceRepository.save(invoice));
     }
 
+    @Transactional(readOnly = true)
     public Page<InvoiceResponse> getInvoices(String statusStr, Long customerId, String search, Pageable pageable, String userEmail) {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
@@ -74,6 +75,7 @@ public class InvoiceService {
         return invoices.map(this::mapToResponse);
     }
 
+    @Transactional(readOnly = true)
     public InvoiceResponse getInvoiceById(Long id, String userEmail) {
         return mapToResponse(getInvoiceOwnedByUser(id, userEmail));
     }
